@@ -1,6 +1,8 @@
 # reagent-react-native
 
-Demo project for Reagent with React Native
+Demo project for Reagent with React Native and Ambly.
+
+Blog post: http://blog.fikesfarm.com/posts/2015-07-20-reagent-react-native.html
 
 Demo of it working is [here](https://youtu.be/4txql-1VXJk).
 
