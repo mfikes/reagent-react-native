@@ -1,4 +1,4 @@
-(ns reagentnative.core
+(ns awesome-project.core
   (:require [reagent.core :as r :refer [atom]]
             [reagent.impl.component :as ru]))
 
