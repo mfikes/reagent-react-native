@@ -10,6 +10,18 @@
 #import "AppDelegate.h"
 
 #import "RCTRootView.h"
+#import "RCTEventDispatcher.h"
+#import "ABYServer.h"
+#import "ABYContextManager.h"
+#import "BTHContextExecutor.h"
+
+@interface AppDelegate()
+
+@property (strong, nonatomic) ABYServer* replServer;
+@property (strong, nonatomic) ABYContextManager* contextManager;
+@property (strong, nonatomic) NSURL* compilerOutputDirectory;
+
+@end
 
 @implementation AppDelegate
 
@@ -45,9 +57,33 @@
 
 //   jsCodeLocation = [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
 
-  RCTRootView *rootView = [[RCTRootView alloc] initWithBundleURL:jsCodeLocation
-                                                      moduleName:@"AwesomeProject"
-                                                   launchOptions:launchOptions];
+  // Set up the ClojureScript compiler output directory
+  self.compilerOutputDirectory = [[self privateDocumentsDirectory] URLByAppendingPathComponent:@"cljs-out"];
+  
+  // Set up our context
+  self.contextManager = [[ABYContextManager alloc] initWithContext:JSGlobalContextCreate(NULL)
+                                           compilerOutputDirectory:self.compilerOutputDirectory];
+  
+  // Inject our context into the BTHContextExecutor
+  [BTHContextExecutor setContext:self.contextManager.context];
+  
+  // Set React Native to intstantiate our BTHContextExecutor, doing this by slipping the executorClass
+  // assignement between alloc and initWithBundleURL:moduleProvider:launchOptions:
+  RCTBridge *bridge = [RCTBridge alloc];
+  bridge.executorClass = [BTHContextExecutor class];
+  bridge = [bridge initWithBundleURL:jsCodeLocation
+                      moduleProvider:nil
+                       launchOptions:launchOptions];
+  
+  // Set up a root view using the bridge defined above
+  RCTRootView *rootView = [[RCTRootView alloc] initWithBridge:bridge
+                                                   moduleName:@"AwesomeProject"];
+  
+  // Set up to be notified when the React Native UI is up
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(contentDidAppear)
+                                               name:RCTContentDidAppearNotification
+                                             object:rootView];
 
   self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
   UIViewController *rootViewController = [[UIViewController alloc] init];
@@ -55,6 +91,97 @@
   self.window.rootViewController = rootViewController;
   [self.window makeKeyAndVisible];
   return YES;
+}
+
+- (NSURL *)privateDocumentsDirectory
+{
+  NSURL *libraryDirectory = [[[NSFileManager defaultManager] URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask] lastObject];
+  
+  return [libraryDirectory URLByAppendingPathComponent:@"Private Documents"];
+}
+
+- (void)createDirectoriesUpTo:(NSURL*)directory
+{
+  if (![[NSFileManager defaultManager] fileExistsAtPath:[directory path]]) {
+    NSError *error = nil;
+    
+    if (![[NSFileManager defaultManager] createDirectoryAtPath:[directory path]
+                                   withIntermediateDirectories:YES
+                                                    attributes:nil
+                                                         error:&error]) {
+      NSLog(@"Can't create directory %@ [%@]", [directory path], error);
+      abort();
+    }
+  }
+}
+
+-(void)requireAppNamespaces:(JSContext*)context
+{
+  [context evaluateScript:[NSString stringWithFormat:@"goog.require('%@');", [self munge:@"awesome-project.core"]]];
+}
+
+- (JSValue*)getValue:(NSString*)name inNamespace:(NSString*)namespace fromContext:(JSContext*)context
+{
+  JSValue* namespaceValue = nil;
+  for (NSString* namespaceElement in [namespace componentsSeparatedByString: @"."]) {
+    if (namespaceValue) {
+      namespaceValue = namespaceValue[[self munge:namespaceElement]];
+    } else {
+      namespaceValue = context[[self munge:namespaceElement]];
+    }
+  }
+  
+  return namespaceValue[[self munge:name]];
+}
+
+- (NSString*)munge:(NSString*)s
+{
+  return [[[s stringByReplacingOccurrencesOfString:@"-" withString:@"_"]
+           stringByReplacingOccurrencesOfString:@"!" withString:@"_BANG_"]
+          stringByReplacingOccurrencesOfString:@"?" withString:@"_QMARK_"];
+}
+
+- (void)contentDidAppear
+{
+  // Ensure private documents directory exists
+  [self createDirectoriesUpTo:[self privateDocumentsDirectory]];
+  
+  // Copy resources from bundle "out" to compilerOutputDirectory
+  
+  NSFileManager* fileManager = [NSFileManager defaultManager];
+  fileManager.delegate = self;
+  
+  // First blow away old compiler output directory
+  [fileManager removeItemAtPath:self.compilerOutputDirectory.path error:nil];
+  
+  // Copy files from bundle to compiler output driectory
+  NSString *outPath = [[NSBundle mainBundle] pathForResource:@"out" ofType:nil];
+  [fileManager copyItemAtPath:outPath toPath:self.compilerOutputDirectory.path error:nil];
+  
+  [self.contextManager setUpAmblyImportScript];
+  
+  NSString* mainJsFilePath = [[self.compilerOutputDirectory URLByAppendingPathComponent:@"main" isDirectory:NO] URLByAppendingPathExtension:@"js"].path;
+  
+  NSURL* googDirectory = [self.compilerOutputDirectory URLByAppendingPathComponent:@"goog"];
+  
+  [self.contextManager bootstrapWithDepsFilePath:mainJsFilePath
+                                    googBasePath:[[googDirectory URLByAppendingPathComponent:@"base" isDirectory:NO] URLByAppendingPathExtension:@"js"].path];
+  
+  JSContext* context = [JSContext contextWithJSGlobalContextRef:self.contextManager.context];
+  [self requireAppNamespaces:context];
+  
+  JSValue* initFn = [self getValue:@"init" inNamespace:@"awesome-project.core" fromContext:context];
+  NSAssert(!initFn.isUndefined, @"Could not find the app init function");
+  [initFn callWithArguments:@[]];
+  
+  // Send a nonsense UI event to cause React Native to load our Om UI
+  RCTRootView* rootView = (RCTRootView*)self.window.rootViewController.view;
+  [rootView.bridge.modules[@"RCTEventDispatcher"] sendInputEventWithName:@"" body:@{@"target": @1}];
+  
+  // Now that React Native has been initialized, fire up our REPL server
+  self.replServer = [[ABYServer alloc] initWithContext:self.contextManager.context
+                               compilerOutputDirectory:self.compilerOutputDirectory];
+  [self.replServer startListening];
 }
 
 @end

@@ -9,7 +9,7 @@
 
 #import <UIKit/UIKit.h>
 
-@interface AppDelegate : UIResponder <UIApplicationDelegate>
+@interface AppDelegate : UIResponder <UIApplicationDelegate, NSFileManagerDelegate>
 
 @property (nonatomic, strong) UIWindow *window;
 
