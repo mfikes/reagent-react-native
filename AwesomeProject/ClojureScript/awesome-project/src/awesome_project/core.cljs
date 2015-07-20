@@ -99,6 +99,4 @@
 (defn root[]
   [navigator {:initial-route {:title "App4" :component page-comp} :style (styles "fullscreen")}])
 
-(.registerRunnable (.-AppRegistry js/React) "AwesomeProject" 
-                   (fn [params]
-                     (r/render [root] (.-rootTag params))))
+(r/render [root] 1)
