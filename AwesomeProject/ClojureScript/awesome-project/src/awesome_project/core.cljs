@@ -2,7 +2,7 @@
   (:require [reagent.core :as r :refer [atom]]
             [reagent.impl.component :as ru]))
 
-(set! js/React (js/require "react-native"))
+(set! js/React (js/require "react-native/Libraries/react-native/react-native"))
 
 (def text (r/adapt-react-class (.-Text js/React)))
 (def view (r/adapt-react-class (.-View js/React)))
