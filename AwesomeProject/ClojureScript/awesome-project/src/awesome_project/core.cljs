@@ -100,3 +100,7 @@
   [navigator {:initial-route {:title "App4" :component page-comp} :style (styles "fullscreen")}])
 
 (r/render [root] 1)
+
+(defn ^:export init []  
+  ((fn render []
+     (.requestAnimationFrame js/window render))))
