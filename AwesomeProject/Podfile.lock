@@ -1,0 +1,18 @@
+PODS:
+  - Ambly (0.6.0):
+    - GCDWebServer/WebDAV (~> 3.2.2)
+  - Bentho (0.4.0)
+  - GCDWebServer/Core (3.2.5)
+  - GCDWebServer/WebDAV (3.2.5):
+    - GCDWebServer/Core
+
+DEPENDENCIES:
+  - Ambly (~> 0.6.0)
+  - Bentho (~> 0.4.0)
+
+SPEC CHECKSUMS:
+  Ambly: cf953b8208d534a999704f8a009897132c37a46f
+  Bentho: 53e6e6d9c516061eee3b21b0149a956c3af37a4b
+  GCDWebServer: d0e1b23785e3dfd6c87601323d0f7cae059aab18
+
+COCOAPODS: 0.35.0
