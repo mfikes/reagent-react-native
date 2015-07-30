@@ -45,6 +45,7 @@
 (def global-state (r/atom 0))
 
 (declare page-comp)
+(declare row-comp)
 
 (def ds (React.ListView.DataSource. #js{:rowHasChanged (fn[a b] false)}))
 
